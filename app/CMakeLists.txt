@@ -35,23 +35,3 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Widgets
     Qt6::Network
 )
-
-# Optional: Add a custom target for lrelease processing.
-# This mimics CONFIG += lrelease and embed_translations in your qmake file.
-# It will run lrelease on your .ts file to generate a .qm file.
-find_program(LRELEASE_EXECUTABLE NAMES lrelease HINTS "${Qt6_DIR}/../../../bin")
-if(LRELEASE_EXECUTABLE)
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/SurvivorsQuest_uk_UA.qm
-        COMMAND ${LRELEASE_EXECUTABLE} ${CMAKE_SOURCE_DIR}/SurvivorsQuest_uk_UA.ts -qm ${CMAKE_CURRENT_BINARY_DIR}/SurvivorsQuest_uk_UA.qm
-        DEPENDS ${CMAKE_SOURCE_DIR}/SurvivorsQuest_uk_UA.ts
-        COMMENT "Running lrelease on translation file"
-    )
-    add_custom_target(translations ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/SurvivorsQuest_uk_UA.qm)
-endif()
-
-# Installation rules
-if(UNIX AND NOT ANDROID)
-    # Mimic the qmake target.path = /opt/$${TARGET}/bin rule
-    install(TARGETS ${PROJECT_NAME} DESTINATION /opt/${PROJECT_NAME}/bin)
-endif()

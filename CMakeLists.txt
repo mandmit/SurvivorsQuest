@@ -8,7 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_SOURCE_DIR}/app/ui)
 
 # Find the Qt package; list all modules you need, for example:
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
-qt_standard_project_setup()
+find_package(Qt6 REQUIRED COMPONENTS Core LinguistTools Gui Widgets Network)
+qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en ua)
+
+qt_add_translations(SurvivorsQuest)
 
 add_subdirectory(app)
