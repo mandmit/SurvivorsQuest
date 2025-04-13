@@ -1,0 +1,95 @@
+/* General application background */
+QWidget {
+    background-color: #383838;
+    color: #aa0000;
+    font-family: "Courier New", monospace;
+    font-size: 18px;
+}
+
+/* Top title bar (if custom title bar) */
+QMainWindow::title {
+    background-color: #383838;
+    color: #cccccc;
+    padding: 6px;
+}
+
+/* Menu panel background */
+QFrame, QGroupBox, QMenu, QTextEdit, QLineEdit {
+    background-color: #555555;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 5px;
+    color: #aa0000;
+}
+
+/* Buttons (menu and others) */
+QPushButton {
+    background-color: transparent;
+    border: none;
+    color: #aa0000;
+    font-weight: bold;
+    font-size: 20px;
+    text-align: left;
+    padding: 6px;
+}
+
+QPushButton:hover {
+    color: #ff3333;
+    text-shadow: 0px 0px 4px #ff3333;
+}
+
+/* Pressed buttons */
+QPushButton:pressed {
+    color: #ff6666;
+}
+
+/* Line edits */
+QLineEdit {
+    background-color: #3d3d3d;
+    color: #dddddd;
+    border: 1px solid #555555;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #ff3333;
+}
+
+/* Text edits */
+QTextEdit {
+    background-color: #3d3d3d;
+    color: #dddddd;
+    border: 1px solid #555555;
+    padding: 6px;
+    border-radius: 4px;
+}
+
+/* Tooltips */
+QToolTip {
+    background-color: #333333;
+    color: #ffffff;
+    border: 1px solid #ff3333;
+    padding: 3px;
+}
+
+/* Window header elements */
+QMenuBar {
+    background-color: #2b2b2b;
+    color: #cccccc;
+}
+
+QMenuBar::item:selected {
+    background-color: #444444;
+    color: #ff3333;
+}
+
+QStatusBar {
+    background-color: #2b2b2b;
+    color: #999999;
+}
+
+/* Scrollbars (optional minimalist style) */
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #444444;
+    width: 10px
