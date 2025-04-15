@@ -79,7 +79,7 @@ private:
     int _port;
 
     //Server stuf
-    QSharedPointer<QTcpServer> _server;
+    QTcpServer* _server = nullptr;
     QMap<QTcpSocket*, int> _socketsList;
     bool bIsServerStarted = false;
 };

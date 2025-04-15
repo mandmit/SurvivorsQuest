@@ -2,6 +2,7 @@
 #define SESSIONMANAGER_H
 
 #include <QObject>
+#include <QStringListModel>
 #include "DeviceController.h"
 #include "PlayerEntry.h"
 #include "SessionUtilities.h"
@@ -19,10 +20,15 @@ public:
     void SetFieldsToShare(const QMap<QString, QString>& NewFields);
     void UpdatePlayerList(const QByteArray &Data);
     void SendMessage(MessageFlags Flag, QTcpSocket* Socket = nullptr/*const QByteArray& Payload = QByteArray()*/);
+    QString GetPlayerNicknameById(int Id);
+    QList<QString> GetPlayersList() const;
+    DeviceController* GetController();
+    QStringListModel* GetPlayerListViewModel();
 
 private:
 
     void ProcessNewPlayerName(QTcpSocket* Sender, QByteArray Data);
+    void UpdatePlayerListView();
 
 public slots:
     void ProcessServerData(QTcpSocket* Sender, QByteArray Data);
@@ -34,15 +40,20 @@ public slots:
 
 signals:
     void ReceivedBroadcastedPlayerFields(int PlayerIndex, const QMap<QString, QString>& ReceivedFields);
+    void NewPlayerNicknameReceived(int PlayerIndex, const QString& Nickname);
+    void PlayerWithNicknameLeft(int PlayerIndex, const QString& Nickname);
 
-public:
+private:
     int LocalPlayerId = -1;
     QMap<int, PlayerEntry> Players;//This info will be created by default for all players. Here each player could track fields of other players. Filled by server and opened for clients (sent when needed).
     QString PlayerName;
     QMap<int, QString> PlayerNameToUniqueId;//Initially it is filled by server and only when game is starting will be passed to the clients.
     QMap<QString, QString> FieldsToShare;//Should be updated when needed to send some particular fields and cleared when sent.
 
-    DeviceController* Controller;
+    QScopedPointer<QStringListModel> Model;
+    QStringList PlayerListView;
+
+    QScopedPointer<DeviceController> Controller;
 
 };
 

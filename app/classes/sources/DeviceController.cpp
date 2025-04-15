@@ -13,8 +13,6 @@ DeviceController::DeviceController(QObject *parent)
     connect(&_socket, &QTcpSocket::stateChanged, this, &DeviceController::SocketStateChanged);
     connect(&_socket, &QTcpSocket::errorOccurred, this, &DeviceController::ErrorOccurred);
     connect(&_socket, &QTcpSocket::readyRead, this, &DeviceController::ServerDataReady);
-
-    _server = nullptr;
 }
 
 void DeviceController::ConnectToServer(QString Ip, int Port)
@@ -68,8 +66,8 @@ void DeviceController::SetupTCPServer(int Port)
 {
     if(!_server)
     {
-        _server = QSharedPointer<QTcpServer>(new QTcpServer(this));
-        connect(_server.get(), &QTcpServer::newConnection, this, &DeviceController::ClientConnected);
+        _server = new QTcpServer(this);
+        connect(_server, &QTcpServer::newConnection, this, &DeviceController::ClientConnected);
     }
     bIsServerStarted = _server->listen(QHostAddress::Any, Port);
     if(!bIsServerStarted)

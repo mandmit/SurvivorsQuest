@@ -1,6 +1,8 @@
 #ifndef SESSIONUTILITIES_H
 #define SESSIONUTILITIES_H
 
+#include <cstdint>
+
 enum MessageFlags : char
 {
     InitPlayerList = '1',
@@ -11,10 +13,12 @@ enum MessageFlags : char
 
 };
 
-class SessionUtilities
+enum MainMenuWidgetIndexes : uint8_t
 {
-public:
-    SessionUtilities();
+    Home = 0,
+    HostServer,
+    ClientConnect,
+    Settings,
+    Exit
 };
-
 #endif // SESSIONUTILITIES_H

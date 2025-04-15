@@ -2,30 +2,30 @@
 
 PublicIpAddressFetcher::PublicIpAddressFetcher(QObject *parent)
     : QObject(parent) {
-    connect(&manager, &QNetworkAccessManager::finished, this, &PublicIpAddressFetcher::onReplyFinished);
-    QNetworkRequest request(QUrl("https://api64.ipify.org")); // or use https://checkip.amazonaws.com
-    manager.get(request);
+    connect(&Manager, &QNetworkAccessManager::finished, this, &PublicIpAddressFetcher::onReplyFinished);
+    QNetworkRequest request(QUrl("https://api64.ipify.org"));
+    Manager.get(request);
 }
 
 void PublicIpAddressFetcher::RequestIpAddress()
 {
     QNetworkRequest request(QUrl("https://api64.ipify.org"));
-    manager.get(request);
+    Manager.get(request);
 }
 
 QString PublicIpAddressFetcher::GetIpAddress() const
 {
-    return publicIPAddress.toString();
+    return PublicIPAddress.toString();
 }
 
 void PublicIpAddressFetcher::onReplyFinished(QNetworkReply *reply)
 {
     if (reply->error() == QNetworkReply::NoError) {
         QString ipAddress = reply->readAll().trimmed();
-        publicIPAddress = QHostAddress(ipAddress);
+        PublicIPAddress = QHostAddress(ipAddress);
         qDebug() << "Public IP Address:" << ipAddress;
     } else {
-        publicIPAddress = QHostAddress("0.0.0.0");
+        PublicIPAddress = QHostAddress("0.0.0.0");
         qDebug() << "Error fetching IP:" << reply->errorString();
     }
     reply->deleteLater();

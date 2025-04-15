@@ -4,8 +4,8 @@
 #include <QMainWindow>
 #include "JsonFieldMediator.h"
 #include "PlayerInfoWindow.h"
-#include "DeviceController.h"
 #include "SessionManager.h"
+#include <QStringListModel>
 #include <QStackedWidget>
 
 QT_BEGIN_NAMESPACE
@@ -26,13 +26,10 @@ public:
 
 private:
 
-    void SetDeviceController();
+    void SetDeviceControllerCallbacks();
+    void SetSessionManagerCallbacks(bool bBindUnbind);
 
-private slots:
-    void on_ClientIpAddress_textChanged(const QString &arg1);
-
-    void on_BtnConnect_clicked();
-
+private slots:    
     //Client slots
     void DeviceConnected();
     void DeviceDisconnected();
@@ -41,28 +38,35 @@ private slots:
     void DeviceDataReady(QTcpSocket* Sender, QByteArray);
 
     //Server slots
-    void NewClientConnected(int Id);
+    void NewClientConnected(int Id, const QString& Nickname);
     void ClientDataReceived(QTcpSocket* Sender, QByteArray);
-    void ClientDisconnected(int Id);
+    void ClientDisconnected(int Id, const QString& Nickname);
     void ServerUpdatePublicIP();
     void SendPlayerInfoToTheServer(const QMap<QString, QString>& MappingToSend);
 
+    void on_ClientIpAddress_textChanged(const QString &arg1);
 
     void on_BtnClearConsole_clicked();
-
-    void on_BtnClientSend_clicked();
 
     void on_BtnServerRun_clicked();
 
     void on_BtnUpdateServInfo_clicked();
 
-    void on_BtnServerSend_clicked();
-
     void on_actionCheck_player_info_tab_triggered();
+
+    void on_backBtn_clicked();
+
+    void on_startServerPushButton_clicked();
+
+    void on_connectPushButton_clicked();
+
+    void on_exitPushButton_clicked();
+
+    void on_clientConnectBtn_clicked();
 
 private:
     Ui::MainWindow *ui;
-    SessionManager* Manager;
+    QScopedPointer<SessionManager> Manager;
 
     PlayerInfoWindow* PInfoWindow = nullptr;
     JSONFieldMediator JsonFieldConverter;

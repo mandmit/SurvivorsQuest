@@ -12,11 +12,15 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    Manager = new SessionManager(this);
-    SetDeviceController();
+    Manager.reset(new SessionManager(this));
+    SetDeviceControllerCallbacks();
+
+    ui->connectedPlayersListView->setModel(Manager->GetPlayerListViewModel());
+
+
     if (!PInfoWindow) { // Ensure only one instance exists
-        PInfoWindow = new PlayerInfoWindow();
-        connect(PInfoWindow, &PlayerInfoWindow::UpdateButtonClicked, this, &MainWindow::SendPlayerInfoToTheServer);
+        //PInfoWindow = new PlayerInfoWindow();
+        //connect(PInfoWindow, &PlayerInfoWindow::UpdateButtonClicked, this, &MainWindow::SendPlayerInfoToTheServer);
 
 
         //Tempo Only test
@@ -25,43 +29,8 @@ MainWindow::MainWindow(QWidget *parent)
         // PlayerEntry.InitPlayerEntry({"Age", "Name", "Ocupation"}, "Just tempon variable");
         // PInfoWindow->InitPlayer(PlayerEntry);
     }
-
-    // QWidget *central = new QWidget;
-    // QVBoxLayout *layout = new QVBoxLayout(central);
-
-    // // Page selector buttons
-    // QPushButton *btnHome = new QPushButton("Home");
-    // QPushButton *btnSettings = new QPushButton("Settings");
-
-    // // Pages
-    // QWidget *homePage = new QWidget;
-    // homePage->setLayout(new QVBoxLayout);
-    // homePage->layout()->addWidget(new QLabel("Welcome to Home"));
-
-    // QWidget *settingsPage = new QWidget;
-    // settingsPage->setLayout(new QVBoxLayout);
-    // settingsPage->layout()->addWidget(new QLabel("Game Settings"));
-
-    // // Stacked widget
-    // pages = new QStackedWidget;
-    // pages->addWidget(homePage);      // Index 0
-    // pages->addWidget(settingsPage);  // Index 1
-
-    // // Connect buttons to page switching
-    // connect(btnHome, &QPushButton::clicked, this, [=]() {
-    //     pages->setCurrentIndex(0);
-    // });
-
-    // connect(btnSettings, &QPushButton::clicked, this, [=]() {
-    //     pages->setCurrentIndex(1);
-    // });
-
-    // // Add widgets to layout
-    // layout->addWidget(btnHome);
-    // layout->addWidget(btnSettings);
-    // layout->addWidget(pages);
-
-    // setCentralWidget(central);
+    ui->mainWindowStackedWidget->setCurrentIndex(MainMenuWidgetIndexes::Home);
+    ui->horizontalFrameHeader->setVisible(false);
 
 }
 
@@ -78,15 +47,29 @@ void MainWindow::SetupPlayerName(QString PlayerName)
     Manager->InitLocalPlayer(PlayerName);
 }
 
-void MainWindow::SetDeviceController()
+void MainWindow::SetDeviceControllerCallbacks()
 {
-    connect(Manager->Controller, &DeviceController::ConnectedToServer, this, &MainWindow::DeviceConnected);
-    connect(Manager->Controller, &DeviceController::DisconnectedFromServer, this, &MainWindow::DeviceDisconnected);
-    connect(Manager->Controller, &DeviceController::StateChanged, this, &MainWindow::DeviceStateChanged);
-    connect(Manager->Controller, &DeviceController::ErrorOccurred, this, &MainWindow::DeviceErrorOccurred);
-    connect(Manager->Controller, &DeviceController::ClientReceivedData, this, &MainWindow::DeviceDataReady);
+    connect(Manager->GetController(), &DeviceController::ConnectedToServer, this, &MainWindow::DeviceConnected);
+    connect(Manager->GetController(), &DeviceController::DisconnectedFromServer, this, &MainWindow::DeviceDisconnected);
+    connect(Manager->GetController(), &DeviceController::StateChanged, this, &MainWindow::DeviceStateChanged);
+    connect(Manager->GetController(), &DeviceController::ErrorOccurred, this, &MainWindow::DeviceErrorOccurred);
+    connect(Manager->GetController(), &DeviceController::ClientReceivedData, this, &MainWindow::DeviceDataReady);
 
-    connect(&Manager->Controller->fetcher, &PublicIpAddressFetcher::IpAddressReceived, this, &MainWindow::ServerUpdatePublicIP);
+    connect(&Manager->GetController()->fetcher, &PublicIpAddressFetcher::IpAddressReceived, this, &MainWindow::ServerUpdatePublicIP);
+}
+
+void MainWindow::SetSessionManagerCallbacks(bool bBindUnbind)
+{
+    if(bBindUnbind)
+    {
+        connect(Manager.get(), &SessionManager::NewPlayerNicknameReceived, this, &MainWindow::NewClientConnected);
+        connect(Manager.get(), &SessionManager::PlayerWithNicknameLeft, this, &MainWindow::ClientDisconnected);
+    }
+    else
+    {
+        disconnect(Manager.get(), &SessionManager::NewPlayerNicknameReceived, this, &MainWindow::NewClientConnected);
+        disconnect(Manager.get(), &SessionManager::PlayerWithNicknameLeft, this, &MainWindow::ClientDisconnected);
+    }
 }
 
 void MainWindow::on_ClientIpAddress_textChanged(const QString &arg1)
@@ -109,39 +92,36 @@ void MainWindow::on_ClientIpAddress_textChanged(const QString &arg1)
 }
 
 
-void MainWindow::on_BtnConnect_clicked()
+void MainWindow::on_clientConnectBtn_clicked()
 {
 
-    if(Manager->Controller->IsServerStarted())
+    if(Manager->GetController()->IsServerStarted())
     {
         qDebug() << "Currently your session is in server mode. Shutdown server to be able to connect as an client.";
         return;
     }
-    if(Manager->Controller->IsConnected())
+    if(Manager->GetController()->IsConnected())
     {
-        Manager->Controller->DisconnectFromServer();
+        Manager->GetController()->DisconnectFromServer();
     }
     else
     {
         auto Ip = ui->ClientIpAddress->text();
         auto Port = ui->ClientPort->value();
-        Manager->Controller->ConnectToServer(Ip, Port);
+        Manager->GetController()->ConnectToServer(Ip, Port);
     }
 }
 
 void MainWindow::DeviceConnected()
 {
-    ui->LstConsole->addItem("Connected to Device");
-    ui->BtnConnect->setText("Disconnect");
-    ui->ClientSendData_GroupBox->setEnabled(true);
+    ui->LstConsole->addItem("Connected to Server");
+    ui->clientConnectBtn->setText("Disconnect");
 }
 
 void MainWindow::DeviceDisconnected()
 {
-    ui->LstConsole->addItem("Disconnected from Device");
-    ui->BtnConnect->setText("Connect");
-    ui->ClientSendData_GroupBox->setEnabled(false);
-    ui->ClientTextToSend->clear();
+    ui->LstConsole->addItem("Disconnected from Server");
+    ui->clientConnectBtn->setText("Connect");
 }
 
 void MainWindow::DeviceStateChanged(QAbstractSocket::SocketState state)
@@ -161,13 +141,6 @@ void MainWindow::DeviceDataReady(QTcpSocket* Sender, QByteArray data)
     ui->LstConsole->addItem(QString(data));
 }
 
-void MainWindow::NewClientConnected(int Id)
-{
-    QString Str("Client");
-    Str.append(QString::number(Id));
-    Str.append(" connected");
-    ui->LstConsole->addItem(Str);
-}
 
 void MainWindow::ClientDataReceived(QTcpSocket* Sender, QByteArray receivedData)//Data received by current device
 {
@@ -203,20 +176,29 @@ void MainWindow::ClientDataReceived(QTcpSocket* Sender, QByteArray receivedData)
     }
 }
 
-void MainWindow::ClientDisconnected(int Id)
+void MainWindow::NewClientConnected(int Id, const QString& Nickname)
 {
-    QString Str("Client");
-    Str.append(QString::number(Id));
-    Str.append(" disconnected");
-    ui->LstConsole->addItem(Str);
+    //PlayerListView.append(Nickname);
+    qDebug() << "Client with nickname:" << Nickname << " and Id" << Id << " has connected";
+    //Model->setStringList(PlayerListView);
+    //ui->LstConsole->addItem(Nickname);
+}
+
+void MainWindow::ClientDisconnected(int Id, const QString& Nickname)
+{
+    //PlayerListView.removeAll(Nickname);
+    qDebug() << "Client with nickname:" << Nickname << " and Id" << Id << " has disconnected";
+    //Model->setStringList(PlayerListView);
+    //ui->LstConsole->addItem(Nickname);
 }
 
 void MainWindow::ServerUpdatePublicIP()
 {
     //Now we could request new info.
+    ui->LstConsole->clear();
     QString ServerInfo;
-    ServerInfo = Manager->Controller->GetServerRunInfo();
-    ui->ServerRunInfo->setPlainText(ServerInfo);
+    ServerInfo = Manager->GetController()->GetServerRunInfo();
+    ui->LstConsole->addItem(ServerInfo);
 }
 
 void MainWindow::SendPlayerInfoToTheServer(const QMap<QString, QString> &MappingToSend)
@@ -232,45 +214,33 @@ void MainWindow::on_BtnClearConsole_clicked()
 }
 
 
-void MainWindow::on_BtnClientSend_clicked()
-{
-    Manager->Controller->SendDataToServer(ui->ClientTextToSend->text().trimmed().toUtf8());
-}
-
-
 void MainWindow::on_BtnServerRun_clicked()
 {
-    if(Manager->Controller->IsConnected())
+    DeviceController* Controller = Manager->GetController();
+    if(Controller->IsConnected())
     {
         qDebug() << "Currently your session is in client mode. Disconnect from current server/device to be able to run server.";
         return;
     }
-    if(Manager->Controller->IsServerStarted())
+    if(Controller->IsServerStarted())
     {
-        Manager->Controller->ShutdownServer();
-        disconnect(Manager->Controller, &DeviceController::NewClientConnected, this, &MainWindow::NewClientConnected);
-        disconnect(Manager->Controller, &DeviceController::ServerReceivedData, this, &MainWindow::ClientDataReceived);
-        disconnect(Manager->Controller, &DeviceController::OldClientDisconnected, this, &MainWindow::ClientDisconnected);
-        ui->ServerRunInfo->clear();
-        ui->ServerSendData_GroupBox->setEnabled(false);
+        Controller->ShutdownServer();
+
+        disconnect(Controller, &DeviceController::ServerReceivedData, this, &MainWindow::ClientDataReceived);
+        SetSessionManagerCallbacks(false);
     }
     else
     {
         auto Port = ui->ServerPort->value();
-        Manager->Controller->SetupTCPServer(Port);
-        connect(Manager->Controller, &DeviceController::NewClientConnected, this, &MainWindow::NewClientConnected);
-        connect(Manager->Controller, &DeviceController::ServerReceivedData, this, &MainWindow::ClientDataReceived);
-        connect(Manager->Controller, &DeviceController::OldClientDisconnected, this, &MainWindow::ClientDisconnected);
+        Controller->SetupTCPServer(Port);
 
-        //I need to receive this info when server is running, not instantly after request for run.
-        // QString ServerInfo;
-        // ServerInfo = _Controller->GetServerRunInfo();
-        // ui->ServerRunInfo->setPlainText(ServerInfo);
-        ui->ServerSendData_GroupBox->setEnabled(true);
+        connect(Controller, &DeviceController::ServerReceivedData, this, &MainWindow::ClientDataReceived);
+        SetSessionManagerCallbacks(true);
 
+        ServerUpdatePublicIP();
     }
 
-    bool bIsServerRunning = Manager->Controller->IsServerStarted();
+    bool bIsServerRunning = Controller->IsServerStarted();
     QString ServerStatus = bIsServerRunning ? "1" : "0";
     ui->ServerIndicator->setProperty("state", ServerStatus);
     ui->BtnServerRun->setText(bIsServerRunning ? "Stop server" : "Run server");
@@ -280,27 +250,45 @@ void MainWindow::on_BtnServerRun_clicked()
 
 void MainWindow::on_BtnUpdateServInfo_clicked()
 {
-    if(Manager->Controller->IsServerStarted())
+    if(Manager->GetController()->IsServerStarted())
     {
-        QString ServerInfo;
-        ServerInfo = Manager->Controller->GetServerRunInfo();
-        ui->ServerRunInfo->setPlainText(ServerInfo);
+        ServerUpdatePublicIP();
     }
     else
     {
-        ui->ServerRunInfo->clear();
+        ui->LstConsole->clear();
+        ui->LstConsole->addItem("Currently not running server");
     }
 }
-
-
-void MainWindow::on_BtnServerSend_clicked()
-{
-    Manager->Controller->BroadcastToAllClients(ui->ServerText->text().toUtf8());
-}
-
 
 void MainWindow::on_actionCheck_player_info_tab_triggered()
 {
     PInfoWindow->show();
 }
 
+
+void MainWindow::on_backBtn_clicked()
+{
+    ui->mainWindowStackedWidget->setCurrentIndex(MainMenuWidgetIndexes::Home);
+    ui->horizontalFrameHeader->setVisible(false);
+}
+
+
+void MainWindow::on_startServerPushButton_clicked()
+{
+    ui->mainWindowStackedWidget->setCurrentIndex(MainMenuWidgetIndexes::HostServer);
+    ui->horizontalFrameHeader->setVisible(true);
+}
+
+
+void MainWindow::on_connectPushButton_clicked()
+{
+    ui->mainWindowStackedWidget->setCurrentIndex(MainMenuWidgetIndexes::ClientConnect);
+    ui->horizontalFrameHeader->setVisible(true);
+}
+
+
+void MainWindow::on_exitPushButton_clicked()
+{
+    this->close();
+}
