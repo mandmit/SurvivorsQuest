@@ -80,7 +80,7 @@ QLabel[state = '1', type = 'server']{
        <enum>QFrame::Shadow::Plain</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="mainPage">
        <layout class="QVBoxLayout" name="verticalLayout">
@@ -360,7 +360,7 @@ QLabel[state = '1', type = 'server']{
                 </property>
                 <layout class="QVBoxLayout" name="verticalLayout_6">
                  <item>
-                  <widget class="QListView" name="connectedPlayersListView"/>
+                  <widget class="QListView" name="connectedPlayersListView_Server"/>
                  </item>
                  <item>
                   <widget class="QPushButton" name="startGamePushButton">
@@ -383,122 +383,137 @@ QLabel[state = '1', type = 'server']{
       <widget class="QWidget" name="setupClientPage">
        <layout class="QVBoxLayout" name="verticalLayout_9">
         <item>
-         <widget class="QFrame" name="frame">
-          <widget class="QGroupBox" name="clientSetupGroupBox">
-           <property name="geometry">
-            <rect>
-             <x>370</x>
-             <y>120</y>
-             <width>321</width>
-             <height>181</height>
-            </rect>
-           </property>
-           <property name="title">
-            <string>Client setup</string>
-           </property>
-           <layout class="QVBoxLayout" name="verticalLayout_17">
-            <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <widget class="QFrame" name="clientConnectionFrame">
+          <layout class="QHBoxLayout" name="horizontalLayout_7">
+           <item>
+            <widget class="QFrame" name="clientSetupFrame">
+             <layout class="QVBoxLayout" name="verticalLayout_17">
               <item>
-               <widget class="QLabel" name="IpAddressLabel_2">
+               <layout class="QHBoxLayout" name="horizontalLayout_2">
+                <item>
+                 <widget class="QLabel" name="IpAddressLabel_2">
+                  <property name="text">
+                   <string>Ip Address</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="ClientIpAddress">
+                  <property name="inputMask">
+                   <string>000.000.000.000;_</string>
+                  </property>
+                  <property name="state" stdset="0">
+                   <string>0</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="horizontalSpacer_3">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="ClientIndicator">
+                  <property name="minimumSize">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string/>
+                  </property>
+                  <property name="state" stdset="0">
+                   <string>0</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_6">
+                <item>
+                 <widget class="QLabel" name="ClientPortLabel_2">
+                  <property name="text">
+                   <string>Port</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="horizontalSpacer_4">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="ClientPort">
+                  <property name="minimum">
+                   <number>1024</number>
+                  </property>
+                  <property name="maximum">
+                   <number>65535</number>
+                  </property>
+                  <property name="value">
+                   <number>5051</number>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="clientConnectBtn">
                 <property name="text">
-                 <string>Ip Address</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="ClientIpAddress">
-                <property name="inputMask">
-                 <string>000.000.000.000;_</string>
-                </property>
-                <property name="state" stdset="0">
-                 <string>0</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="horizontalSpacer_3">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QLabel" name="ClientIndicator">
-                <property name="minimumSize">
-                 <size>
-                  <width>20</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>20</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-                <property name="state" stdset="0">
-                 <string>0</string>
+                 <string>Connect</string>
                 </property>
                </widget>
               </item>
              </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_6">
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="connectedPlayersClientFrame">
+             <property name="frameShape">
+              <enum>QFrame::Shape::StyledPanel</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Shadow::Raised</enum>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_7">
               <item>
-               <widget class="QLabel" name="ClientPortLabel_2">
+               <widget class="QListView" name="connectedPlayersListView_Client"/>
+              </item>
+              <item>
+               <widget class="QPushButton" name="clientReadyButton">
                 <property name="text">
-                 <string>Port</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="horizontalSpacer_4">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QSpinBox" name="ClientPort">
-                <property name="minimum">
-                 <number>1024</number>
-                </property>
-                <property name="maximum">
-                 <number>65535</number>
-                </property>
-                <property name="value">
-                 <number>5051</number>
+                 <string>Ready</string>
                 </property>
                </widget>
               </item>
              </layout>
-            </item>
-            <item>
-             <widget class="QPushButton" name="clientConnectBtn">
-              <property name="text">
-               <string>Connect</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
        </layout>

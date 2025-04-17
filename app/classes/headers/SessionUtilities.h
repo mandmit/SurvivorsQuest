@@ -9,7 +9,8 @@ enum MessageFlags : char
     ReqInitPlayer = '2',
     ResInitPlayer = '3',
     TargetFieldsReviel = '4',
-    BroadcastFieldsReviel = '5'
+    BroadcastFieldsReviel = '5',
+    ReqChangeNicknameDublicate = '6'
 
 };
 
@@ -18,7 +19,6 @@ enum MainMenuWidgetIndexes : uint8_t
     Home = 0,
     HostServer,
     ClientConnect,
-    Settings,
-    Exit
+    Settings
 };
 #endif // SESSIONUTILITIES_H

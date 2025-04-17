@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "PromptDialog.h"
 #include "ui_mainwindow.h"
 
 #include <QHostAddress>
@@ -14,8 +15,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     Manager.reset(new SessionManager(this));
     SetDeviceControllerCallbacks();
-
-    ui->connectedPlayersListView->setModel(Manager->GetPlayerListViewModel());
+    SetSessionManagerCallbacks(true);
 
 
     if (!PInfoWindow) { // Ensure only one instance exists
@@ -42,9 +42,9 @@ MainWindow::~MainWindow()
     }
 }
 
-void MainWindow::SetupPlayerName(QString PlayerName)
+void MainWindow::SetupLocalPlayerName(const QString& PlayerName)
 {
-    Manager->InitLocalPlayer(PlayerName);
+    Manager->ChangePlayerName(PlayerName);
 }
 
 void MainWindow::SetDeviceControllerCallbacks()
@@ -55,6 +55,7 @@ void MainWindow::SetDeviceControllerCallbacks()
     connect(Manager->GetController(), &DeviceController::ErrorOccurred, this, &MainWindow::DeviceErrorOccurred);
     connect(Manager->GetController(), &DeviceController::ClientReceivedData, this, &MainWindow::DeviceDataReady);
 
+
     connect(&Manager->GetController()->fetcher, &PublicIpAddressFetcher::IpAddressReceived, this, &MainWindow::ServerUpdatePublicIP);
 }
 
@@ -64,11 +65,15 @@ void MainWindow::SetSessionManagerCallbacks(bool bBindUnbind)
     {
         connect(Manager.get(), &SessionManager::NewPlayerNicknameReceived, this, &MainWindow::NewClientConnected);
         connect(Manager.get(), &SessionManager::PlayerWithNicknameLeft, this, &MainWindow::ClientDisconnected);
+        //connect(Manager.get(), &SessionManager::ChangeNicknameStatus, this, &MainWindow::CheckClientValidNickname);
+        connect(Manager.get(), &SessionManager::RequestChangePlayerNickname, this, &MainWindow::TriggerChangeNicknameWindow);
     }
     else
     {
         disconnect(Manager.get(), &SessionManager::NewPlayerNicknameReceived, this, &MainWindow::NewClientConnected);
         disconnect(Manager.get(), &SessionManager::PlayerWithNicknameLeft, this, &MainWindow::ClientDisconnected);
+        //disconnect(Manager.get(), &SessionManager::ChangeNicknameStatus, this, &MainWindow::CheckClientValidNickname);
+        disconnect(Manager.get(), &SessionManager::RequestChangePlayerNickname, this, &MainWindow::TriggerChangeNicknameWindow);
     }
 }
 
@@ -114,12 +119,14 @@ void MainWindow::on_clientConnectBtn_clicked()
 
 void MainWindow::DeviceConnected()
 {
+    ui->connectedPlayersListView_Client->setModel(Manager->GetPlayerListViewModel());
     ui->LstConsole->addItem("Connected to Server");
     ui->clientConnectBtn->setText("Disconnect");
 }
 
 void MainWindow::DeviceDisconnected()
 {
+    ui->connectedPlayersListView_Client->reset();
     ui->LstConsole->addItem("Disconnected from Server");
     ui->clientConnectBtn->setText("Connect");
 }
@@ -130,32 +137,56 @@ void MainWindow::DeviceStateChanged(QAbstractSocket::SocketState state)
     ui->LstConsole->addItem(MetaEnum.valueToKey(state));
 }
 
-void MainWindow::DeviceErrorOccurred(QAbstractSocket::SocketError error)
+void MainWindow::DeviceErrorOccurred(QAbstractSocket::SocketError Error)
 {
     QMetaEnum MetaEnum = QMetaEnum::fromType<QAbstractSocket::SocketError>();
-    ui->LstConsole->addItem(MetaEnum.valueToKey(error));
+    ui->LstConsole->addItem(MetaEnum.valueToKey(Error));
 }
 
-void MainWindow::DeviceDataReady(QTcpSocket* Sender, QByteArray data)
+void MainWindow::DeviceDataReady(QTcpSocket* Sender, const QByteArray& Data)
 {
-    ui->LstConsole->addItem(QString(data));
+    ui->LstConsole->addItem(QString(Data));
+}
+
+// void MainWindow::CheckClientValidNickname(bool bIsSuccess)
+// {
+//     if(!bIsSuccess)
+//     {
+//         TriggerChangeNicknameWindow();
+//     }
+// }
+
+void MainWindow::TriggerChangeNicknameWindow()
+{
+    PromptDialog prompt;
+    if (prompt.exec() == QDialog::Accepted) {
+        QString Name = prompt.getText();
+        if(!Name.isNull() && !Name.isEmpty())
+        {
+            Manager->ChangePlayerName(Name);
+        }
+        else
+        {
+            qDebug() << "Client entered non valid name. It is empty or null.\n";
+        }
+    }
 }
 
 
-void MainWindow::ClientDataReceived(QTcpSocket* Sender, QByteArray receivedData)//Data received by current device
+void MainWindow::ClientDataReceived(QTcpSocket* Sender, const QByteArray& ReceivedData)//Data received by current device
 {
-    ui->LstConsole->addItem(QString(receivedData));
-    MessageFlags Flag = static_cast<MessageFlags>(receivedData.at(0));
+    ui->LstConsole->addItem(QString(ReceivedData));
+    MessageFlags Flag = static_cast<MessageFlags>(ReceivedData.at(0));
     switch(Flag)
     {
     case MessageFlags::BroadcastFieldsReviel:
         ui->LstConsole->addItem(QString("BroadcastFieldReviel message."));
-        PInfoWindow->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(receivedData.right(receivedData.size() - 1)));
+        PInfoWindow->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(ReceivedData.right(ReceivedData.size() - 1)));
         break;
     case MessageFlags::TargetFieldsReviel:
         //TODO
         ui->LstConsole->addItem(QString("TargetFieldReviel message."));
-        PInfoWindow->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(receivedData.right(receivedData.size() - 1)));
+        PInfoWindow->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(ReceivedData.right(ReceivedData.size() - 1)));
         break;
     case MessageFlags::ReqInitPlayer:
         ui->LstConsole->addItem(QString("ReqInitPlayer message."));
@@ -227,7 +258,9 @@ void MainWindow::on_BtnServerRun_clicked()
         Controller->ShutdownServer();
 
         disconnect(Controller, &DeviceController::ServerReceivedData, this, &MainWindow::ClientDataReceived);
-        SetSessionManagerCallbacks(false);
+        //SetSessionManagerCallbacks(false);
+
+        ui->connectedPlayersListView_Server->reset();
     }
     else
     {
@@ -235,7 +268,9 @@ void MainWindow::on_BtnServerRun_clicked()
         Controller->SetupTCPServer(Port);
 
         connect(Controller, &DeviceController::ServerReceivedData, this, &MainWindow::ClientDataReceived);
-        SetSessionManagerCallbacks(true);
+        //SetSessionManagerCallbacks(true);
+
+        ui->connectedPlayersListView_Server->setModel(Manager->GetPlayerListViewModel());
 
         ServerUpdatePublicIP();
     }
@@ -292,3 +327,9 @@ void MainWindow::on_exitPushButton_clicked()
 {
     this->close();
 }
+
+void MainWindow::on_clientReadyButton_clicked()
+{
+    //TODO: make ready message to server.
+}
+

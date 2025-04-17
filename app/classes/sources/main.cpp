@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
         MainWindow w;
         w.setWindowTitle("Survivors Quest");
         w.setWindowIcon(QIcon(":/Icon/MainIcon"));
-        w.SetupPlayerName(Name);
+        w.SetupLocalPlayerName(Name);
         w.show();
 
 

@@ -16,7 +16,7 @@ public:
     void StartGameSession();
     void InitPlayers();
     QByteArray GetFieldsToShareAndClear();
-    void InitLocalPlayer(QString NewName);
+    void ChangePlayerName(const QString& NewName);
     void SetFieldsToShare(const QMap<QString, QString>& NewFields);
     void UpdatePlayerList(const QByteArray &Data);
     void SendMessage(MessageFlags Flag, QTcpSocket* Socket = nullptr/*const QByteArray& Payload = QByteArray()*/);
@@ -27,21 +27,26 @@ public:
 
 private:
 
-    void ProcessNewPlayerName(QTcpSocket* Sender, QByteArray Data);
+    void ProcessNewClientPlayerName(QTcpSocket* Sender, const QByteArray& Data);
     void UpdatePlayerListView();
+    void ServerNotifyClientNameUpdated();
 
 public slots:
-    void ProcessServerData(QTcpSocket* Sender, QByteArray Data);
-    void ProcessClientData(QTcpSocket* Sender, QByteArray Data);
+    void ProcessServerData(QTcpSocket* Sender, const QByteArray& Data);
+    void ProcessClientData(QTcpSocket* Sender, const QByteArray& Data);
     void SetupServerPlayer();
     void ClenupServerPlayer();
     void NewPlayerHandshake(int Id);
     void PlayerLeft(int Id);
+    void ProcessServerConnection();
+    void ProcessServerDisconnection();
 
 signals:
     void ReceivedBroadcastedPlayerFields(int PlayerIndex, const QMap<QString, QString>& ReceivedFields);
     void NewPlayerNicknameReceived(int PlayerIndex, const QString& Nickname);
     void PlayerWithNicknameLeft(int PlayerIndex, const QString& Nickname);
+    void RequestChangePlayerNickname();
+    //void ChangeNicknameStatus(bool bIsSuccess);
 
 private:
     int LocalPlayerId = -1;

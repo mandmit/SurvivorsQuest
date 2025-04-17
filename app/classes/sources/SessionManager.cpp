@@ -14,6 +14,9 @@ SessionManager::SessionManager(QObject* parent)
     connect(Controller.get(), &DeviceController::ClientReceivedData, this, &SessionManager::ProcessServerData);
     connect(Controller.get(), &DeviceController::ServerReceivedData, this, &SessionManager::ProcessClientData);
 
+    connect(Controller.get(), &DeviceController::ConnectedToServer, this, &SessionManager::ProcessServerConnection);
+    connect(Controller.get(), &DeviceController::DisconnectedFromServer, this, &SessionManager::ProcessServerDisconnection);
+
     Model.reset(new QStringListModel(this));
     Model->setStringList(PlayerListView);
 }
@@ -40,14 +43,22 @@ QByteArray SessionManager::GetFieldsToShareAndClear()
     return FieldsToShare.isEmpty() ? (QByteArray()) : (JSONFieldMediator::PackDataAsMappingInplace(FieldsToShare));
 }
 
-void SessionManager::InitLocalPlayer(QString NewName)
+void SessionManager::ChangePlayerName(const QString& NewName)
 {
     if(PlayerName != NewName)
     {
         PlayerName = NewName;
+        if(!Controller->IsServer())
+        {
+            ServerNotifyClientNameUpdated();
+        }
+
+        //emit ChangeNicknameStatus(true);
     }
-    LocalPlayerId = 0;
-    PlayerNameToUniqueId[LocalPlayerId] = PlayerName;
+    else
+    {
+        //emit ChangeNicknameStatus(false);
+    }
 }
 
 void SessionManager::SetFieldsToShare(const QMap<QString, QString>& NewFields)
@@ -78,6 +89,7 @@ void SessionManager::UpdatePlayerList(const QByteArray &Data)
             }
         }
     }
+    UpdatePlayerListView();
 }
 
 void SessionManager::SendMessage(MessageFlags Flag, QTcpSocket *Socket/*, const QByteArray &Payload*/)
@@ -165,6 +177,19 @@ void SessionManager::SendMessage(MessageFlags Flag, QTcpSocket *Socket/*, const 
         //TODO
         break;
 
+    case MessageFlags::ReqChangeNicknameDublicate:
+        //TODO send message to change nickname.
+        ResponseData.append(static_cast<char>(MessageFlags::ReqChangeNicknameDublicate));
+        if(!Socket)
+        {
+            qDebug() << "Invalid socket pointer\n";
+        }
+        else
+        {
+            Socket->write(ResponseData);
+        }
+        break;
+
     default:
         break;
     }
@@ -190,7 +215,7 @@ QStringListModel *SessionManager::GetPlayerListViewModel()
     return Model.get();
 }
 
-void SessionManager::ProcessServerData(QTcpSocket* Sender, QByteArray Data)//Client received data from server.
+void SessionManager::ProcessServerData(QTcpSocket* Sender, const QByteArray& Data)//Client received data from server.
 {
     MessageFlags ReadFlag = static_cast<MessageFlags>(Data.at(0));
     QJsonDocument Doc;
@@ -224,7 +249,11 @@ void SessionManager::ProcessServerData(QTcpSocket* Sender, QByteArray Data)//Cli
         break;
 
     case MessageFlags::InitPlayerList:
-        UpdatePlayerList(Data);
+        UpdatePlayerList(Data.right(Data.size() - 1));
+        break;
+
+    case MessageFlags::ReqChangeNicknameDublicate:
+        emit RequestChangePlayerNickname();
         break;
 
     default:
@@ -233,11 +262,15 @@ void SessionManager::ProcessServerData(QTcpSocket* Sender, QByteArray Data)//Cli
     }
 }
 
-void SessionManager::ProcessNewPlayerName(QTcpSocket* Sender, QByteArray Data)
+void SessionManager::ProcessNewClientPlayerName(QTcpSocket* Sender, const QByteArray& Data)
 {
-    QJsonDocument Doc = QJsonDocument::fromJson(Data);
+    QJsonParseError Error;
+    QJsonDocument Doc = QJsonDocument::fromJson(Data, &Error);
     QJsonObject Object;
     QString ReceivedNickname;
+
+    //Data = Data.trimmed();
+
     if(!Doc.isNull())
     {
         if(Doc.isObject())
@@ -261,6 +294,14 @@ void SessionManager::ProcessNewPlayerName(QTcpSocket* Sender, QByteArray Data)
                 }
                 else
                 {
+                    //Check if the current nickname has not already been taken
+                    if(PlayerNameToUniqueId.key(ReceivedNickname, -1) != -1)
+                    {
+                        //TODO: Problem if client sent his identical name as before that was claimed as dublicate.
+                        //Make message for this client to change nickname.
+                        SendMessage(MessageFlags::ReqChangeNicknameDublicate, Sender);
+                        return;
+                    }
                     PlayerNameToUniqueId.insert(UniquePlayerId, ReceivedNickname);
                 }
             }
@@ -284,6 +325,11 @@ void SessionManager::ProcessNewPlayerName(QTcpSocket* Sender, QByteArray Data)
             emit NewPlayerNicknameReceived(UniquePlayerId, ReceivedNickname);
         }
     }
+    else
+    {
+        if (Error.error != QJsonParseError::NoError)
+            qDebug() << "Parsing failed:" << Error.errorString();
+    }
 }
 
 void SessionManager::UpdatePlayerListView()
@@ -294,7 +340,7 @@ void SessionManager::UpdatePlayerListView()
     Model->setStringList(PlayerListView);
 }
 
-void SessionManager::ProcessClientData(QTcpSocket* Sender, QByteArray Data)//Server received data from client.
+void SessionManager::ProcessClientData(QTcpSocket* Sender, const QByteArray& Data)//Server received data from client.
 {
     MessageFlags ReadFlag = static_cast<MessageFlags>(Data.at(0));
     QJsonDocument Doc;
@@ -306,7 +352,7 @@ void SessionManager::ProcessClientData(QTcpSocket* Sender, QByteArray Data)//Ser
     case MessageFlags::ResInitPlayer:
 
         //I need to extract player nickname here before broadcasting.
-        ProcessNewPlayerName(Sender, Data.right(Data.size() - 1));
+        ProcessNewClientPlayerName(Sender, Data.right(Data.size() - 1));
         SendMessage(MessageFlags::InitPlayerList);//TODO Check if this broadcast init works
         break;
         //                                             Brdcst flag  Sender(char)    JSON Payload
@@ -334,23 +380,23 @@ void SessionManager::ProcessClientData(QTcpSocket* Sender, QByteArray Data)//Ser
         qDebug() << "Server got request for init player. It is prohibited.";
         break;
     default:
-        qDebug() << "Not handled message from server!\n";
+        qDebug() << "Not handled message from client!\n";
         break;
     }
 }
 
 void SessionManager::SetupServerPlayer()
 {
-    InitLocalPlayer(PlayerName);
+    ChangePlayerName(PlayerName);
+
+    LocalPlayerId = 0;
+    PlayerNameToUniqueId[LocalPlayerId] = PlayerName;
+
+    UpdatePlayerListView();
 }
 
 void SessionManager::ClenupServerPlayer()
 {
-    //The only reason to clean up server player is when server player closed connection to all connected clients. We don't need to search server in map - we can clear whole map at once.
-    // PlayerNameToUniqueId.removeIf([this](QPair<int, QString> KeyValue)
-    //                               {
-    //                                   return KeyValue.second == PlayerName;
-    //                               });
     PlayerNameToUniqueId.clear();
     UpdatePlayerListView();//Call to update view model.
 
@@ -364,11 +410,25 @@ void SessionManager::NewPlayerHandshake(int Id)
 
 void SessionManager::PlayerLeft(int Id)
 {
-    //TODO: Do something when player left
     QString LeftPlayerName = GetPlayerNicknameById(Id);
     PlayerNameToUniqueId.remove(Id);
 
     UpdatePlayerListView();
 
     emit PlayerWithNicknameLeft(Id, LeftPlayerName);
+}
+
+void SessionManager::ProcessServerConnection()
+{
+    PlayerNameToUniqueId.clear();
+}
+
+void SessionManager::ProcessServerDisconnection()
+{
+    PlayerNameToUniqueId.clear();
+}
+
+void SessionManager::ServerNotifyClientNameUpdated()
+{
+    SendMessage(MessageFlags::ResInitPlayer, Controller->GetServerSocket());
 }

@@ -87,11 +87,13 @@ void DeviceController::ShutdownServer()
 {
     if(_server && _server->isListening())
     {
-        for(auto it = _socketsList.begin(); it != _socketsList.end(); ++it)
+        for(auto it = _socketsList.keyBegin(); it != _socketsList.keyEnd(); ++it)
         {
-            it.key()->close();
+            QTcpSocket* Socket = it.base().key();
+            Socket->close();
         }
         _server->close();
+
         bIsServerStarted = _server->isListening();
         _socketsList.clear();
         bIsServer = false;

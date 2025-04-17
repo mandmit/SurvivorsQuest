@@ -22,24 +22,27 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    void SetupPlayerName(QString PlayerName);
+    void SetupLocalPlayerName(const QString& PlayerName);
 
 private:
 
     void SetDeviceControllerCallbacks();
     void SetSessionManagerCallbacks(bool bBindUnbind);
 
-private slots:    
+private slots:
     //Client slots
     void DeviceConnected();
     void DeviceDisconnected();
     void DeviceStateChanged(QAbstractSocket::SocketState);
     void DeviceErrorOccurred(QAbstractSocket::SocketError);
-    void DeviceDataReady(QTcpSocket* Sender, QByteArray);
+    void DeviceDataReady(QTcpSocket* Sender, const QByteArray& Data);
+    void TriggerChangeNicknameWindow();
+    //void CheckClientValidNickname(bool bIsSuccess);
+
 
     //Server slots
     void NewClientConnected(int Id, const QString& Nickname);
-    void ClientDataReceived(QTcpSocket* Sender, QByteArray);
+    void ClientDataReceived(QTcpSocket* Sender, const QByteArray& Data);
     void ClientDisconnected(int Id, const QString& Nickname);
     void ServerUpdatePublicIP();
     void SendPlayerInfoToTheServer(const QMap<QString, QString>& MappingToSend);
@@ -63,6 +66,8 @@ private slots:
     void on_exitPushButton_clicked();
 
     void on_clientConnectBtn_clicked();
+
+    void on_clientReadyButton_clicked();
 
 private:
     Ui::MainWindow *ui;
