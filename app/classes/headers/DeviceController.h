@@ -14,7 +14,7 @@ public:
 
 
     //Client methods
-    void ConnectToServer(QString Ip, int Port);
+    void ConnectToServer(QString inIp, int inPort);
     void DisconnectFromServer();
     QAbstractSocket::SocketState GetState() const;
     bool IsConnected() const;
@@ -70,17 +70,17 @@ private slots:
     void ClientDataReady();
 private:
     int LocalUniqueId = -1;
-    //Client stuf
+    //Client stuff
 
-    QTcpSocket _socket;//Client socket - connection to the server
-    QString _ip;
+    QTcpSocket Socket;//Client socket - connection to the server
+    QString Ip;
 
     bool bIsServer = false;
-    int _port;
+    int Port;
 
-    //Server stuf
-    QTcpServer* _server = nullptr;
-    QMap<QTcpSocket*, int> _socketsList;
+    //Server stuff
+    QTcpServer* Server = nullptr;
+    QMap<QTcpSocket*, int> SocketsList;
     bool bIsServerStarted = false;
 };
 

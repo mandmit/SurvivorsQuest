@@ -11,10 +11,10 @@ class PromptDialog : public QDialog {
 
 public:
     PromptDialog(QWidget* parent = nullptr);
-    QString getText() const;
+    QString GetText() const;
 
 private:
-    QLineEdit* inputField;
+    QLineEdit* InputField;
 };
 
 #endif // PROMPTDIALOG_H

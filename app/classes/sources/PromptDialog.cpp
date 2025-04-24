@@ -8,11 +8,11 @@ PromptDialog::PromptDialog(QWidget* parent)
     QVBoxLayout* layout = new QVBoxLayout(this);
 
     QLabel* label = new QLabel("Please enter your player name:", this);
-    inputField = new QLineEdit(this);
+    InputField = new QLineEdit(this);
     QPushButton* okButton = new QPushButton("OK", this);
 
     layout->addWidget(label);
-    layout->addWidget(inputField);
+    layout->addWidget(InputField);
     layout->addWidget(okButton);
 
     connect(okButton, &QPushButton::clicked, this, &QDialog::accept);
@@ -20,6 +20,6 @@ PromptDialog::PromptDialog(QWidget* parent)
     setLayout(layout);
 }
 
-QString PromptDialog::getText() const {
-    return inputField->text();
+QString PromptDialog::GetText() const {
+    return InputField->text();
 }

@@ -24,7 +24,7 @@ private slots:
     void onReplyFinished(QNetworkReply* reply);
 
 private:
-    QNetworkAccessManager Manager;
+    QNetworkAccessManager NetManager;
     QHostAddress PublicIPAddress;
 };
 

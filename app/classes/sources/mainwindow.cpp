@@ -18,16 +18,16 @@ MainWindow::MainWindow(QWidget *parent)
     SetSessionManagerCallbacks(true);
 
 
-    if (!PInfoWindow) { // Ensure only one instance exists
-        //PInfoWindow = new PlayerInfoWindow();
-        //connect(PInfoWindow, &PlayerInfoWindow::UpdateButtonClicked, this, &MainWindow::SendPlayerInfoToTheServer);
+    if (!PInfoWidget) { // Ensure only one instance exists
+        //PInfoWidget = new PlayerInfoWindow();
+        //connect(PInfoWidget, &PlayerInfoWindow::UpdateButtonClicked, this, &MainWindow::SendPlayerInfoToTheServer);
 
 
         //Tempo Only test
 
         // PlayerEntry PlayerEntry;
         // PlayerEntry.InitPlayerEntry({"Age", "Name", "Ocupation"}, "Just tempon variable");
-        // PInfoWindow->InitPlayer(PlayerEntry);
+        // PInfoWidget->InitPlayer(PlayerEntry);
     }
     ui->mainWindowStackedWidget->setCurrentIndex(MainMenuWidgetIndexes::Home);
     ui->horizontalFrameHeader->setVisible(false);
@@ -37,8 +37,8 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
-    if (PInfoWindow) {
-        delete PInfoWindow;
+    if (PInfoWidget) {
+        delete PInfoWidget;
     }
 }
 
@@ -49,11 +49,13 @@ void MainWindow::SetupLocalPlayerName(const QString& PlayerName)
 
 void MainWindow::SetDeviceControllerCallbacks()
 {
-    connect(Manager->GetController(), &DeviceController::ConnectedToServer, this, &MainWindow::DeviceConnected);
-    connect(Manager->GetController(), &DeviceController::DisconnectedFromServer, this, &MainWindow::DeviceDisconnected);
+    connect(Manager->GetController(), &DeviceController::ConnectedToServer, this, &MainWindow::ConnectedToServer);
+    connect(Manager->GetController(), &DeviceController::DisconnectedFromServer, this, &MainWindow::DisconnectedFromServer);
     connect(Manager->GetController(), &DeviceController::StateChanged, this, &MainWindow::DeviceStateChanged);
     connect(Manager->GetController(), &DeviceController::ErrorOccurred, this, &MainWindow::DeviceErrorOccurred);
     connect(Manager->GetController(), &DeviceController::ClientReceivedData, this, &MainWindow::DeviceDataReady);
+
+    connect(Manager.get(), &SessionManager::StartLocalSession, this, &MainWindow::OnSessionStartReady);
 
 
     connect(&Manager->GetController()->fetcher, &PublicIpAddressFetcher::IpAddressReceived, this, &MainWindow::ServerUpdatePublicIP);
@@ -75,6 +77,28 @@ void MainWindow::SetSessionManagerCallbacks(bool bBindUnbind)
         //disconnect(Manager.get(), &SessionManager::ChangeNicknameStatus, this, &MainWindow::CheckClientValidNickname);
         disconnect(Manager.get(), &SessionManager::RequestChangePlayerNickname, this, &MainWindow::TriggerChangeNicknameWindow);
     }
+}
+
+void MainWindow::InitPlayerOnTabWidget()
+{
+
+    PlayerInfoWidget* EntryWidget = nullptr;
+
+    const QVector<PlayerEntry*> Players = Manager->GetPlayerEntriesList();
+
+    for(const PlayerEntry* Entry : Players)
+    {
+        EntryWidget = new PlayerInfoWidget(this);//QWidget
+        //connect(PInfoWidget, &PlayerInfoWidget::UpdateButtonClicked, this, &MainWindow::SendPlayerInfoToTheServer);
+        EntryWidget->InitPlayer(*Entry);
+
+        ui->playersTabWidget->addTab(EntryWidget, Entry->GetPlayerName());
+    }
+
+    const PlayerEntry* LocalPlayer = Manager->GetLocalPlayerEntry();
+
+    EntryWidget = new PlayerInfoWidget(ui->localPlayerFrame);//QWidget
+    EntryWidget->InitPlayer(*LocalPlayer);
 }
 
 void MainWindow::on_ClientIpAddress_textChanged(const QString &arg1)
@@ -117,16 +141,16 @@ void MainWindow::on_clientConnectBtn_clicked()
     }
 }
 
-void MainWindow::DeviceConnected()
+void MainWindow::ConnectedToServer()
 {
     ui->connectedPlayersListView_Client->setModel(Manager->GetPlayerListViewModel());
     ui->LstConsole->addItem("Connected to Server");
     ui->clientConnectBtn->setText("Disconnect");
 }
 
-void MainWindow::DeviceDisconnected()
+void MainWindow::DisconnectedFromServer()
 {
-    ui->connectedPlayersListView_Client->reset();
+    ui->connectedPlayersListView_Client->reset();//Does not work
     ui->LstConsole->addItem("Disconnected from Server");
     ui->clientConnectBtn->setText("Connect");
 }
@@ -148,19 +172,11 @@ void MainWindow::DeviceDataReady(QTcpSocket* Sender, const QByteArray& Data)
     ui->LstConsole->addItem(QString(Data));
 }
 
-// void MainWindow::CheckClientValidNickname(bool bIsSuccess)
-// {
-//     if(!bIsSuccess)
-//     {
-//         TriggerChangeNicknameWindow();
-//     }
-// }
-
 void MainWindow::TriggerChangeNicknameWindow()
 {
     PromptDialog prompt;
     if (prompt.exec() == QDialog::Accepted) {
-        QString Name = prompt.getText();
+        QString Name = prompt.GetText();
         if(!Name.isNull() && !Name.isEmpty())
         {
             Manager->ChangePlayerName(Name);
@@ -172,6 +188,14 @@ void MainWindow::TriggerChangeNicknameWindow()
     }
 }
 
+void MainWindow::OnSessionStartReady()
+{
+    ui->mainWindowStackedWidget->setCurrentIndex(MainMenuWidgetIndexes::InGame);
+    ui->horizontalFrameHeader->setVisible(true);
+
+    InitPlayerOnTabWidget();
+}
+
 
 void MainWindow::ClientDataReceived(QTcpSocket* Sender, const QByteArray& ReceivedData)//Data received by current device
 {
@@ -179,14 +203,14 @@ void MainWindow::ClientDataReceived(QTcpSocket* Sender, const QByteArray& Receiv
     MessageFlags Flag = static_cast<MessageFlags>(ReceivedData.at(0));
     switch(Flag)
     {
-    case MessageFlags::BroadcastFieldsReviel:
-        ui->LstConsole->addItem(QString("BroadcastFieldReviel message."));
-        PInfoWindow->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(ReceivedData.right(ReceivedData.size() - 1)));
+    case MessageFlags::BroadcastFieldsReveal:
+        ui->LstConsole->addItem(QString("BroadcastFieldReveal message."));
+        PInfoWidget->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(ReceivedData.right(ReceivedData.size() - 1)));
         break;
-    case MessageFlags::TargetFieldsReviel:
+    case MessageFlags::TargetFieldsReveal:
         //TODO
-        ui->LstConsole->addItem(QString("TargetFieldReviel message."));
-        PInfoWindow->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(ReceivedData.right(ReceivedData.size() - 1)));
+        ui->LstConsole->addItem(QString("TargetFieldReveal message."));
+        PInfoWidget->WriteFieldsDataFromMapping(JSONFieldMediator::UnpackDataAsMappingInplace(ReceivedData.right(ReceivedData.size() - 1)));
         break;
     case MessageFlags::ReqInitPlayer:
         ui->LstConsole->addItem(QString("ReqInitPlayer message."));
@@ -235,7 +259,7 @@ void MainWindow::ServerUpdatePublicIP()
 void MainWindow::SendPlayerInfoToTheServer(const QMap<QString, QString> &MappingToSend)
 {
     Manager->SetFieldsToShare(MappingToSend);
-    Manager->SendMessage(MessageFlags::BroadcastFieldsReviel);
+    Manager->SendMessage(MessageFlags::BroadcastFieldsReveal);
 }
 
 
@@ -298,7 +322,7 @@ void MainWindow::on_BtnUpdateServInfo_clicked()
 
 void MainWindow::on_actionCheck_player_info_tab_triggered()
 {
-    PInfoWindow->show();
+    PInfoWidget->show();
 }
 
 
@@ -331,5 +355,14 @@ void MainWindow::on_exitPushButton_clicked()
 void MainWindow::on_clientReadyButton_clicked()
 {
     //TODO: make ready message to server.
+}
+
+
+void MainWindow::on_startGamePushButton_clicked()
+{
+    if(Manager->GetController()->IsServer())
+    {
+        Manager->PreStartGameSession();
+    }
 }
 

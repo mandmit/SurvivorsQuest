@@ -3,7 +3,7 @@
 
 #include <QMainWindow>
 #include "JsonFieldMediator.h"
-#include "PlayerInfoWindow.h"
+#include "PlayerInfoWidget.h"
 #include "SessionManager.h"
 #include <QStringListModel>
 #include <QStackedWidget>
@@ -28,17 +28,19 @@ private:
 
     void SetDeviceControllerCallbacks();
     void SetSessionManagerCallbacks(bool bBindUnbind);
+    void InitPlayerOnTabWidget();
 
 private slots:
     //Client slots
-    void DeviceConnected();
-    void DeviceDisconnected();
+    void ConnectedToServer();
+    void DisconnectedFromServer();
     void DeviceStateChanged(QAbstractSocket::SocketState);
     void DeviceErrorOccurred(QAbstractSocket::SocketError);
     void DeviceDataReady(QTcpSocket* Sender, const QByteArray& Data);
     void TriggerChangeNicknameWindow();
-    //void CheckClientValidNickname(bool bIsSuccess);
 
+    //Shared
+    void OnSessionStartReady();
 
     //Server slots
     void NewClientConnected(int Id, const QString& Nickname);
@@ -69,11 +71,13 @@ private slots:
 
     void on_clientReadyButton_clicked();
 
+    void on_startGamePushButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     QScopedPointer<SessionManager> Manager;
 
-    PlayerInfoWindow* PInfoWindow = nullptr;
+    PlayerInfoWidget* PInfoWidget = nullptr;
     JSONFieldMediator JsonFieldConverter;
 
     //Test

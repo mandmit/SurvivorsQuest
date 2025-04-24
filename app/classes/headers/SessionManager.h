@@ -13,7 +13,7 @@ class SessionManager : public QObject
 public:
     explicit SessionManager(QObject* parent = nullptr);
 
-    void StartGameSession();
+    void PreStartGameSession();
     void InitPlayers();
     QByteArray GetFieldsToShareAndClear();
     void ChangePlayerName(const QString& NewName);
@@ -21,9 +21,12 @@ public:
     void UpdatePlayerList(const QByteArray &Data);
     void SendMessage(MessageFlags Flag, QTcpSocket* Socket = nullptr/*const QByteArray& Payload = QByteArray()*/);
     QString GetPlayerNicknameById(int Id);
-    QList<QString> GetPlayersList() const;
+    QVector<PlayerEntry*> GetPlayerEntriesList();
+    QList<QString> GetPlayersListNames() const;
     DeviceController* GetController();
+    PlayerEntry* GetLocalPlayerEntry();
     QStringListModel* GetPlayerListViewModel();
+    void SetFieldsForSession(const QList<QString>& Fields, const QString& DefaultValue = "???");
 
 private:
 
@@ -45,13 +48,16 @@ signals:
     void ReceivedBroadcastedPlayerFields(int PlayerIndex, const QMap<QString, QString>& ReceivedFields);
     void NewPlayerNicknameReceived(int PlayerIndex, const QString& Nickname);
     void PlayerWithNicknameLeft(int PlayerIndex, const QString& Nickname);
+    void StartLocalSession();
     void RequestChangePlayerNickname();
-    //void ChangeNicknameStatus(bool bIsSuccess);
 
 private:
     int LocalPlayerId = -1;
     QMap<int, PlayerEntry> Players;//This info will be created by default for all players. Here each player could track fields of other players. Filled by server and opened for clients (sent when needed).
     QString PlayerName;
+
+    PlayerEntry* LocalPlayer = nullptr;
+
     QMap<int, QString> PlayerNameToUniqueId;//Initially it is filled by server and only when game is starting will be passed to the clients.
     QMap<QString, QString> FieldsToShare;//Should be updated when needed to send some particular fields and cleared when sent.
 
@@ -59,6 +65,20 @@ private:
     QStringList PlayerListView;
 
     QScopedPointer<DeviceController> Controller;
+
+    //Session/game props
+    QMap<QString, QVector<QString>> DefaultFieldToValuesMapping
+        {
+        {"Age", {}}, {"Sex", {"Male", "Female"}},
+        {"Occupation/Skills", {"Doctor","Mechanic", "Teacher"}}, {"Inventory", {"Knife", "Pistol", "First Aid Kit", "Battery", "Food Rations (3 days)"}},
+        {"Personal Traits", {"Loyal", "Paranoid", "Leader", "Selfish", "Antisocial", "Empathic"}}, {"Flaws", {"Injured", "Blind", "Deaf", "Low IQ"}},
+        {"Physical Health", {"Athletic", "Avarage", "Weak"}}, {"Mental Health", {"Normal", "Crazy", "Emotionless"}},
+        {"Criminal Records", {"Killer", "Thief", "Hacker"}}
+        };
+
+    QList<QString> FieldsForGame;
+
+
 
 };
 

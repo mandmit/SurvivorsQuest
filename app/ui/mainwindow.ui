@@ -80,7 +80,7 @@ QLabel[state = '1', type = 'server']{
        <enum>QFrame::Shadow::Plain</enum>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="mainPage">
        <layout class="QVBoxLayout" name="verticalLayout">
@@ -530,10 +530,23 @@ QLabel[state = '1', type = 'server']{
           </property>
           <layout class="QHBoxLayout" name="horizontalLayout">
            <item>
-            <widget class="QWidget" name="widget" native="true">
-             <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <widget class="QFrame" name="localPlayerFrame">
+             <property name="frameShape">
+              <enum>QFrame::Shape::StyledPanel</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Shadow::Raised</enum>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_5">
               <item>
-               <widget class="QTableWidget" name="localPlayerWidgetTable"/>
+               <widget class="QWidget" name="localPlayerWidget" native="true">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+               </widget>
               </item>
              </layout>
             </widget>
@@ -550,18 +563,8 @@ QLabel[state = '1', type = 'server']{
               <enum>QTabWidget::TabShape::Rounded</enum>
              </property>
              <property name="currentIndex">
-              <number>0</number>
+              <number>-1</number>
              </property>
-             <widget class="QWidget" name="Player_1">
-              <attribute name="title">
-               <string>Tab 1</string>
-              </attribute>
-             </widget>
-             <widget class="QWidget" name="Player_2">
-              <attribute name="title">
-               <string>Tab 2</string>
-              </attribute>
-             </widget>
             </widget>
            </item>
           </layout>

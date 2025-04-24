@@ -8,68 +8,68 @@
 DeviceController::DeviceController(QObject *parent)
     : QObject{parent}
 {
-    connect(&_socket, &QTcpSocket::connected, this, &DeviceController::ConnectedToServer);
-    connect(&_socket, &QTcpSocket::disconnected, this, &DeviceController::DisconnectedFromServer);
-    connect(&_socket, &QTcpSocket::stateChanged, this, &DeviceController::SocketStateChanged);
-    connect(&_socket, &QTcpSocket::errorOccurred, this, &DeviceController::ErrorOccurred);
-    connect(&_socket, &QTcpSocket::readyRead, this, &DeviceController::ServerDataReady);
+    connect(&Socket, &QTcpSocket::connected, this, &DeviceController::ConnectedToServer);
+    connect(&Socket, &QTcpSocket::disconnected, this, &DeviceController::DisconnectedFromServer);
+    connect(&Socket, &QTcpSocket::stateChanged, this, &DeviceController::SocketStateChanged);
+    connect(&Socket, &QTcpSocket::errorOccurred, this, &DeviceController::ErrorOccurred);
+    connect(&Socket, &QTcpSocket::readyRead, this, &DeviceController::ServerDataReady);
 }
 
-void DeviceController::ConnectToServer(QString Ip, int Port)
+void DeviceController::ConnectToServer(QString inIp, int inPort)
 {
-    if(_socket.isOpen())
+    if(Socket.isOpen())
     {
-        if(Ip == _ip && Port == _port)
+        if(Ip == inIp && Port == inPort)
         {
             //DO nothing
             return;
         }
-        _socket.close();
+        Socket.close();
     }
 
-    _ip = Ip;
-    _port = Port;
-    _socket.connectToHost(_ip, _port);
+    Ip = inIp;
+    Port = inPort;
+    Socket.connectToHost(Ip, Port);
 }
 
 QAbstractSocket::SocketState DeviceController::GetState() const
 {
-    return _socket.state();
+    return Socket.state();
 }
 
 bool DeviceController::IsConnected() const
 {
-    return _socket.state() == QAbstractSocket::ConnectedState;
+    return Socket.state() == QAbstractSocket::ConnectedState;
 }
 
 void DeviceController::SendDataToServer(QByteArray data)
 {
-    _socket.write(data);
+    Socket.write(data);
 }
 
 QTcpSocket *DeviceController::GetServerSocket()
 {
-    return &_socket;
+    return &Socket;
 }
 
 QTcpSocket *DeviceController::GetPlayerSocketById(int Id)
 {
-    return _socketsList.key(Id);
+    return SocketsList.key(Id);
 }
 
 int DeviceController::GetPlayerIdBySocket(QTcpSocket *Socket, int DefaultVal)
 {
-    return _socketsList.value(Socket, DefaultVal);
+    return SocketsList.value(Socket, DefaultVal);
 }
 
 void DeviceController::SetupTCPServer(int Port)
 {
-    if(!_server)
+    if(!Server)
     {
-        _server = new QTcpServer(this);
-        connect(_server, &QTcpServer::newConnection, this, &DeviceController::ClientConnected);
+        Server = new QTcpServer(this);
+        connect(Server, &QTcpServer::newConnection, this, &DeviceController::ClientConnected);
     }
-    bIsServerStarted = _server->listen(QHostAddress::Any, Port);
+    bIsServerStarted = Server->listen(QHostAddress::Any, Port);
     if(!bIsServerStarted)
     {
         qDebug() << "Server could not start";
@@ -85,17 +85,17 @@ void DeviceController::SetupTCPServer(int Port)
 
 void DeviceController::ShutdownServer()
 {
-    if(_server && _server->isListening())
+    if(Server && Server->isListening())
     {
-        for(auto it = _socketsList.keyBegin(); it != _socketsList.keyEnd(); ++it)
+        for(auto it = SocketsList.keyBegin(); it != SocketsList.keyEnd(); ++it)
         {
             QTcpSocket* Socket = it.base().key();
             Socket->close();
         }
-        _server->close();
+        Server->close();
 
-        bIsServerStarted = _server->isListening();
-        _socketsList.clear();
+        bIsServerStarted = Server->isListening();
+        SocketsList.clear();
         bIsServer = false;
         //
         emit ShutdownServerCall();
@@ -104,9 +104,9 @@ void DeviceController::ShutdownServer()
 
 void DeviceController::DisconnectFromServer()
 {
-    if(_socket.isOpen())
+    if(Socket.isOpen())
     {
-        _socket.close();
+        Socket.close();
     }
 }
 
@@ -114,37 +114,37 @@ void DeviceController::SocketStateChanged(QAbstractSocket::SocketState state)
 {
     if(state == QAbstractSocket::UnconnectedState)
     {
-        _socket.close();
+        Socket.close();
     }
     emit StateChanged(state);
 }
 
 void DeviceController::ServerDataReady()//Client received message from server.
 {
-    QByteArray data = _socket.readAll();
-    emit ClientReceivedData(&_socket, data);
+    QByteArray data = Socket.readAll();
+    emit ClientReceivedData(&Socket, data);
 }
 
 void DeviceController::ClientConnected()
 {
     qDebug() << "a client connected to server";
-    QTcpSocket* socket = _server->nextPendingConnection();
-    _socketsList.insert(socket, _socketsList.size() + 1);//+1 because 0 is reserver by server
+    QTcpSocket* socket = Server->nextPendingConnection();
+    SocketsList.insert(socket, SocketsList.size() + 1);//+1 because 0 is reserver by server
 
     connect(socket, &QTcpSocket::disconnected, this, &DeviceController::ClientDisconnected);
     connect(socket, &QTcpSocket::readyRead, this, &DeviceController::ClientDataReady);
 
-    emit NewClientConnected(_socketsList[socket]);
+    emit NewClientConnected(SocketsList[socket]);
 }
 
 void DeviceController::ClientDisconnected()
 {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     int Id = -1;
-    if(_socketsList.contains(socket))
+    if(SocketsList.contains(socket))
     {
-        Id = _socketsList.value(socket);
-        _socketsList.remove(socket);
+        Id = SocketsList.value(socket);
+        SocketsList.remove(socket);
     }
     emit OldClientDisconnected(Id);
 }
@@ -168,7 +168,7 @@ bool DeviceController::IsServer() const
 
 QString DeviceController::GetServerRunInfo() const
 {
-    if(_server)
+    if(Server)
     {
         QString Info;
         // QList<QHostAddress> ipAddressesList = QNetworkInterface::allAddresses();
@@ -179,7 +179,7 @@ QString DeviceController::GetServerRunInfo() const
         //     }
         // }
         Info.append("IpAddress: " + fetcher.GetIpAddress());
-        Info.append(" Port: " + QString::number(_server->serverPort()));
+        Info.append(" Port: " + QString::number(Server->serverPort()));
         return Info;
     }
     return QString("Server is not running");
@@ -187,7 +187,7 @@ QString DeviceController::GetServerRunInfo() const
 
 void DeviceController::BroadcastToAllClients(QByteArray data, QTcpSocket* Except)
 {
-    for(auto it = _socketsList.begin(); it != _socketsList.end(); ++it)
+    for(auto it = SocketsList.begin(); it != SocketsList.end(); ++it)
     {
         if(Except != it.key())
         {
@@ -196,13 +196,7 @@ void DeviceController::BroadcastToAllClients(QByteArray data, QTcpSocket* Except
     }
 }
 
-// void DeviceController::SendDataToClient(QTcpSocket *Sender, QTcpSocket *Receiver, QByteArray data)
-// {
-//     //Do something with Sender. Maybe pass alongside with data? Or like inside struct.
-//     Receiver->write(data);
-// }
-
 QList<QTcpSocket*> DeviceController::GetAllConnectedClients()
 {
-    return _socketsList.keys();
+    return SocketsList.keys();
 }

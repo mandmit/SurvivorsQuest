@@ -2,15 +2,15 @@
 
 PublicIpAddressFetcher::PublicIpAddressFetcher(QObject *parent)
     : QObject(parent) {
-    connect(&Manager, &QNetworkAccessManager::finished, this, &PublicIpAddressFetcher::onReplyFinished);
+    connect(&NetManager, &QNetworkAccessManager::finished, this, &PublicIpAddressFetcher::onReplyFinished);
     QNetworkRequest request(QUrl("https://api64.ipify.org"));
-    Manager.get(request);
+    NetManager.get(request);
 }
 
 void PublicIpAddressFetcher::RequestIpAddress()
 {
     QNetworkRequest request(QUrl("https://api64.ipify.org"));
-    Manager.get(request);
+    NetManager.get(request);
 }
 
 QString PublicIpAddressFetcher::GetIpAddress() const

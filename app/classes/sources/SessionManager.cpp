@@ -1,6 +1,7 @@
 #include "SessionManager.h"
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRandomGenerator>
 #include "JsonFieldMediator.h"
 
 SessionManager::SessionManager(QObject* parent)
@@ -19,22 +20,64 @@ SessionManager::SessionManager(QObject* parent)
 
     Model.reset(new QStringListModel(this));
     Model->setStringList(PlayerListView);
+
+    FieldsForGame = DefaultFieldToValuesMapping.keys();
 }
 
 
-void SessionManager::StartGameSession()
+void SessionManager::PreStartGameSession()
 {
     //To start game session we should gather data if all connected players are ready.
     //Make countdown of readiness for all players untill all are ready.
+    //For now we should only make network call for start game (each client should enter screen with all players fields, server as well)
+    InitPlayers();
+
+    if(Controller->IsServer())
+    {
+        SendMessage(MessageFlags::StartGame);
+
+    }
+    emit StartLocalSession();
 }
 
-void SessionManager::InitPlayers()//Will be called when game start. Before calling we should have already received valid list of players in session from server.
+void SessionManager::InitPlayers()//Will be called when game starts. Before calling we should have already received valid list of players in session from server.
 {
+    bool bIsPlayerEntryOwner = false;
+    bool bIsAuthority = Controller->IsServer();
     for(auto it = PlayerNameToUniqueId.begin(); it != PlayerNameToUniqueId.end(); ++it)
     {
-        Players[it.key()] = PlayerEntry(it.value());
+        PlayerEntry Entry{it.value()};
+        bIsPlayerEntryOwner = (PlayerName == it.value());
+
+        if(bIsAuthority)
+        {
+            for(const QString& FieldName : FieldsForGame)
+            {
+                //TODO Rework structure representation of mapping field name to value later - using QVariant as value instead of plain qstring.
+                if(FieldName == "Age")
+                {
+                    Entry.AddUpdateEntry({"Age", QString::number(QRandomGenerator::global()->bounded(18, 90))}, bIsPlayerEntryOwner);
+                }
+                else
+                {
+                    const size_t FieldValuesSize = DefaultFieldToValuesMapping[FieldName].size();
+                    Entry.AddUpdateEntry({FieldName, DefaultFieldToValuesMapping[FieldName].at(QRandomGenerator::global()->bounded(FieldValuesSize))}, bIsPlayerEntryOwner);
+                }
+            }
+        }
+        else
+        {
+            Entry.InitPlayerEntry(FieldsForGame, "???");
+        }
+        //Players[it.key()] = std::move(Entry);
+        Players.insert(it.key(), std::move(Entry));
     }
 
+
+    if(bIsAuthority)
+    {
+        SendMessage(MessageFlags::InitPlayerFields);//Send to all client sockets their initial player fields.
+    }
     //LocalPlayerId = PlayerNameToUniqueId.key(PlayerName);
 }
 
@@ -52,12 +95,6 @@ void SessionManager::ChangePlayerName(const QString& NewName)
         {
             ServerNotifyClientNameUpdated();
         }
-
-        //emit ChangeNicknameStatus(true);
-    }
-    else
-    {
-        //emit ChangeNicknameStatus(false);
     }
 }
 
@@ -84,7 +121,12 @@ void SessionManager::UpdatePlayerList(const QByteArray &Data)
             {
                 if(it.value().isString())
                 {
-                    PlayerNameToUniqueId.insert(it.key().toInt(), it.value().toString("Null"));
+                    QString Name = it.value().toString("Null");
+                    PlayerNameToUniqueId.insert(it.key().toInt(), Name);
+                    if(Name == PlayerName)
+                    {
+                        LocalPlayerId = it.key().toInt();
+                    }
                 }
             }
         }
@@ -97,27 +139,27 @@ void SessionManager::SendMessage(MessageFlags Flag, QTcpSocket *Socket/*, const 
     //TODO make message based on given flag. Payload could be ignored or even discarded from function.
     QJsonDocument Doc;
     QJsonObject Object;
-    QByteArray ResponseData;
+    QByteArray Message;
 
     //Maybe I could use bIsServer variable to make it clear how and what message we should send
     switch(Flag)// Which message we want to create and send to given socket.
     {
-    case MessageFlags::BroadcastFieldsReviel:
+    case MessageFlags::BroadcastFieldsReveal:
         //Message signature 3....A...........{"FieldName":"FieldValue",etc...}
         //TODO check if works correctly
-        ResponseData.append(static_cast<char>(MessageFlags::BroadcastFieldsReviel));
-        ResponseData.append(static_cast<char>(LocalPlayerId));//WHOISSENDER Pass into message as a char. Actually could be a huge problem. If char tables are not unified for devices.
-        ResponseData.append(GetFieldsToShareAndClear());
+        Message.append(static_cast<char>(MessageFlags::BroadcastFieldsReveal));
+        Message.append(static_cast<char>(LocalPlayerId));//WHOISSENDER Pass into message as a char. Actually could be a huge problem. If char tables are not unified for devices.
+        Message.append(GetFieldsToShareAndClear());
 
         if(Controller->IsServer())
         {
             //We are server as client - we should just broadcast to all connected devices fields.
-            Controller->BroadcastToAllClients(ResponseData);
+            Controller->BroadcastToAllClients(Message);
         }
         else
         {
             //Client made message for broadcast. We should inform server about call and let it handle broadcasting.
-            Controller->SendDataToServer(ResponseData);
+            Controller->SendDataToServer(Message);
         }
 
         qDebug() << "Client sent message to server for broadcasting fields to all players";
@@ -126,15 +168,15 @@ void SessionManager::SendMessage(MessageFlags Flag, QTcpSocket *Socket/*, const 
     case MessageFlags::InitPlayerList:
         if(Controller->IsServer())// If we are not the server we have no reason to create message with this flag
         {
-            ResponseData.append(static_cast<char>(MessageFlags::InitPlayerList));
+            Message.append(static_cast<char>(MessageFlags::InitPlayerList));
             for(auto it = PlayerNameToUniqueId.begin(); it != PlayerNameToUniqueId.end(); ++it)
             {
                 Object.insert(QString::number(it.key()), it.value());
             }
             Doc.setObject(Object);
-            ResponseData.append(Doc.toJson(QJsonDocument::Compact));
+            Message.append(Doc.toJson(QJsonDocument::Compact));
 
-            Controller->BroadcastToAllClients((ResponseData));
+            Controller->BroadcastToAllClients((Message));
         }
         break;
 
@@ -142,14 +184,14 @@ void SessionManager::SendMessage(MessageFlags Flag, QTcpSocket *Socket/*, const 
         //socket->write("Welcome to the server.");
         if(Controller->IsServer())
         {
-            ResponseData.append(static_cast<char>(MessageFlags::ReqInitPlayer));
+            Message.append(static_cast<char>(MessageFlags::ReqInitPlayer));
             if(!Socket)
             {
                 qDebug() << "Trying to use nullptr socket when ReqInitPlayer message.\n";
             }
             else
             {
-                Socket->write(ResponseData);
+                Socket->write(Message);
             }
         }
         break;
@@ -159,34 +201,57 @@ void SessionManager::SendMessage(MessageFlags Flag, QTcpSocket *Socket/*, const 
         {
             Object.insert("Nickname", PlayerName);
             Doc.setObject(Object);
-            ResponseData.append(static_cast<char>(MessageFlags::ResInitPlayer));
-            ResponseData.append(Doc.toJson(QJsonDocument::Compact));
+            Message.append(static_cast<char>(MessageFlags::ResInitPlayer));
+            Message.append(Doc.toJson(QJsonDocument::Compact));
             if(!Socket)
             {
                 qDebug() << "Trying to use nullptr socket when ResInitPlayer message.\n";
             }
             else
             {
-                Socket->write(ResponseData);
+                Socket->write(Message);
             }
         }
         break;
 
-    case MessageFlags::TargetFieldsReviel:
-        //We should create message to given socket with field that we want to reviel to someone specific.
+    case MessageFlags::TargetFieldsReveal:
+        //We should create message to given socket with field that we want to reveal to someone specific.
         //TODO
         break;
 
+    case MessageFlags::InitPlayerFields:
+        if(!Controller.isNull() && Controller->IsServer())
+        {
+            for(QTcpSocket* ClientSocket : Controller->GetAllConnectedClients())
+            {
+                QMap<QString, QString> PlayerFieldsCopy = Players[Controller->GetPlayerIdBySocket(ClientSocket)].GetPlayerFieldsCopyAsStrings();
+
+                Message.append(static_cast<char>(MessageFlags::InitPlayerFields));
+                Message.append(JSONFieldMediator::PackDataAsMappingInplace(PlayerFieldsCopy));
+
+                ClientSocket->write(Message);
+            }
+        }
+
+        break;
+
     case MessageFlags::ReqChangeNicknameDublicate:
-        //TODO send message to change nickname.
-        ResponseData.append(static_cast<char>(MessageFlags::ReqChangeNicknameDublicate));
+        Message.append(static_cast<char>(MessageFlags::ReqChangeNicknameDublicate));
         if(!Socket)
         {
             qDebug() << "Invalid socket pointer\n";
         }
         else
         {
-            Socket->write(ResponseData);
+            Socket->write(Message);
+        }
+        break;
+
+    case MessageFlags::StartGame:
+        if(Controller->IsServer())
+        {
+            Message.append(static_cast<char>(MessageFlags::StartGame));
+            Controller->BroadcastToAllClients(Message);
         }
         break;
 
@@ -200,7 +265,27 @@ QString SessionManager::GetPlayerNicknameById(int Id)
     return (PlayerNameToUniqueId.value(Id, "null"));
 }
 
-QList<QString> SessionManager::GetPlayersList() const
+QVector<PlayerEntry *> SessionManager::GetPlayerEntriesList()
+{
+    QVector<PlayerEntry*> EntriesList;
+    EntriesList.reserve(Players.size());
+
+    for(auto It = Players.begin(); It != Players.end(); ++It)
+    {
+        if(It.value().GetPlayerName() != PlayerName)//Add if not the owner of fields.
+        {
+            EntriesList.push_back(&It.value());
+        }
+        else
+        {
+            LocalPlayer = &It.value();
+        }
+    }
+
+    return EntriesList;
+}
+
+QList<QString> SessionManager::GetPlayersListNames() const
 {
     return PlayerNameToUniqueId.values();
 }
@@ -210,9 +295,27 @@ DeviceController *SessionManager::GetController()
     return Controller.get();
 }
 
+PlayerEntry *SessionManager::GetLocalPlayerEntry()
+{
+    if(!LocalPlayer)
+    {
+        LocalPlayer = &Players[LocalPlayerId];
+    }
+    return LocalPlayer;
+}
+
 QStringListModel *SessionManager::GetPlayerListViewModel()
 {
     return Model.get();
+}
+
+void SessionManager::SetFieldsForSession(const QList<QString> &Fields, const QString& DefaultValue)
+{
+    if(!Fields.isEmpty())
+    {
+        FieldsForGame.clear();
+    }
+    FieldsForGame = std::move(Fields);
 }
 
 void SessionManager::ProcessServerData(QTcpSocket* Sender, const QByteArray& Data)//Client received data from server.
@@ -229,11 +332,11 @@ void SessionManager::ProcessServerData(QTcpSocket* Sender, const QByteArray& Dat
         SendMessage(MessageFlags::ResInitPlayer, Sender);
         break;
 
-    case MessageFlags::TargetFieldsReviel:
+    case MessageFlags::TargetFieldsReveal:
         //SendMessage(socket, ReadFlag, data);
         break;
 
-    case MessageFlags::BroadcastFieldsReviel:
+    case MessageFlags::BroadcastFieldsReveal:
 
         //TODO Check if works
 
@@ -256,86 +359,105 @@ void SessionManager::ProcessServerData(QTcpSocket* Sender, const QByteArray& Dat
         emit RequestChangePlayerNickname();
         break;
 
+    case MessageFlags::InitPlayerFields:
+
+        Doc = QJsonDocument::fromJson(Data.right(Data.size() - 1));
+        ReceivedFields = JSONFieldMediator::UnpackDataAsMappingInplace(Doc);
+
+        Players[LocalPlayerId].InitPlayerEntry(ReceivedFields);
+
+        //emit ClientReceivedInitialPlayerFields();//Does this call even make sense? We updated our player representation data already.
+
+        break;
+
+    case MessageFlags::StartGame:
+
+        PreStartGameSession();
+        break;
+
     default:
         qDebug() << "Not handled message from server!\n";
         break;
     }
 }
 
-void SessionManager::ProcessNewClientPlayerName(QTcpSocket* Sender, const QByteArray& Data)
+void SessionManager::ProcessNewClientPlayerName(QTcpSocket* Sender, const QByteArray& Data)//Called only on server
 {
-    QJsonParseError Error;
-    QJsonDocument Doc = QJsonDocument::fromJson(Data, &Error);
-    QJsonObject Object;
-    QString ReceivedNickname;
-
-    //Data = Data.trimmed();
-
-    if(!Doc.isNull())
+    if(!Controller.isNull() && Controller->IsServer())
     {
-        if(Doc.isObject())
+        QJsonParseError Error;
+        QJsonDocument Doc = QJsonDocument::fromJson(Data, &Error);
+        QJsonObject Object;
+        QString ReceivedNickname;
+
+        //Data = Data.trimmed();
+
+        if(!Doc.isNull())
         {
-            Object = Doc.object();
-            ReceivedNickname = Object["Nickname"].toString("null");
-
-            int UniquePlayerId = Controller->GetPlayerIdBySocket(Sender, -1);
-
-            if(UniquePlayerId == -1)//First entry. Somehow we received message from unkown socket. Just drop.
+            if(Doc.isObject())
             {
-                return;
-            }
+                Object = Doc.object();
+                ReceivedNickname = Object["Nickname"].toString("null");
 
-            if(!PlayerNameToUniqueId.contains(UniquePlayerId))//First entry. Add unique Id for player and write player nickname
-            {
-                if(ReceivedNickname == "null" || ReceivedNickname.isEmpty())
+                int UniquePlayerId = Controller->GetPlayerIdBySocket(Sender, -1);
+
+                if(UniquePlayerId == -1)//First entry. Somehow we received message from unkown socket. Just drop.
                 {
-                    //Handle invalid nickname.
-                    qDebug() << "Received Invalid nickname";
-                }
-                else
-                {
-                    //Check if the current nickname has not already been taken
-                    if(PlayerNameToUniqueId.key(ReceivedNickname, -1) != -1)
-                    {
-                        //TODO: Problem if client sent his identical name as before that was claimed as dublicate.
-                        //Make message for this client to change nickname.
-                        SendMessage(MessageFlags::ReqChangeNicknameDublicate, Sender);
-                        return;
-                    }
-                    PlayerNameToUniqueId.insert(UniquePlayerId, ReceivedNickname);
-                }
-            }
-            else
-            {
-                //Update nickname
-                QString OldName = PlayerNameToUniqueId.value(UniquePlayerId);
-                if(OldName == ReceivedNickname)
-                {
-                    //Same nickname. Do nothing.
                     return;
                 }
+
+                if(!PlayerNameToUniqueId.contains(UniquePlayerId))//First entry. Add unique Id for player and write player nickname
+                {
+                    if(ReceivedNickname == "null" || ReceivedNickname.isEmpty())
+                    {
+                        //Handle invalid nickname.
+                        qDebug() << "Received Invalid nickname";
+                    }
+                    else
+                    {
+                        //Check if the current nickname has not already been taken
+                        if(PlayerNameToUniqueId.key(ReceivedNickname, -1) != -1)
+                        {
+                            //TODO: Problem if client sent his identical name as before that was claimed as dublicate - it will be ignored and not be processed.
+                            //Make message for this client to change nickname.
+                            SendMessage(MessageFlags::ReqChangeNicknameDublicate, Sender);
+                            return;
+                        }
+                        PlayerNameToUniqueId.insert(UniquePlayerId, ReceivedNickname);
+                    }
+                }
                 else
                 {
-                    PlayerNameToUniqueId.remove(UniquePlayerId);
-                    PlayerNameToUniqueId.insert(UniquePlayerId, ReceivedNickname);
+                    //Update nickname
+                    QString OldName = PlayerNameToUniqueId.value(UniquePlayerId);
+                    if(OldName == ReceivedNickname)
+                    {
+                        //Same nickname. Do nothing.
+                        return;
+                    }
+                    else
+                    {
+                        PlayerNameToUniqueId.remove(UniquePlayerId);
+                        PlayerNameToUniqueId.insert(UniquePlayerId, ReceivedNickname);
+                    }
                 }
-            }
 
-            UpdatePlayerListView();
-            emit NewPlayerNicknameReceived(UniquePlayerId, ReceivedNickname);
+                UpdatePlayerListView();
+                emit NewPlayerNicknameReceived(UniquePlayerId, ReceivedNickname);
+            }
         }
-    }
-    else
-    {
-        if (Error.error != QJsonParseError::NoError)
-            qDebug() << "Parsing failed:" << Error.errorString();
+        else
+        {
+            if (Error.error != QJsonParseError::NoError)
+                qDebug() << "Parsing failed:" << Error.errorString();
+        }
     }
 }
 
 void SessionManager::UpdatePlayerListView()
 {
     PlayerListView.clear();
-    PlayerListView = GetPlayersList();
+    PlayerListView = GetPlayersListNames();
 
     Model->setStringList(PlayerListView);
 }
@@ -357,7 +479,7 @@ void SessionManager::ProcessClientData(QTcpSocket* Sender, const QByteArray& Dat
         break;
         //                                             Brdcst flag  Sender(char)    JSON Payload
         //                                                      |    |                              |
-    case MessageFlags::BroadcastFieldsReviel://Message signature 3....A...........{"FieldName":"FieldValue",etc...}
+    case MessageFlags::BroadcastFieldsReveal://Message signature 3....A...........{"FieldName":"FieldValue",etc...}
         //TODO check if works correctly
         PlayerIndex = static_cast<int>(Data.at(1));
         Doc = QJsonDocument::fromJson(Data.right(Data.size() - 2));
@@ -371,9 +493,9 @@ void SessionManager::ProcessClientData(QTcpSocket* Sender, const QByteArray& Dat
         qDebug() << "Server should broadcast passed info to all players";
         break;
 
-    case MessageFlags::TargetFieldsReviel:
+    case MessageFlags::TargetFieldsReveal:
         //TODO. Later
-        qDebug() << "Server got message for player target field reviel.";
+        qDebug() << "Server got message for player target field reveal.";
         break;
 
     case MessageFlags::ReqInitPlayer:

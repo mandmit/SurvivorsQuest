@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
 
     PromptDialog prompt;
     if (prompt.exec() == QDialog::Accepted) {
-        QString Name = prompt.getText();
+        QString Name = prompt.GetText();
 
         // Pass the name to your main window, or use it however you need
         QTranslator translator;

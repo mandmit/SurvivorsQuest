@@ -1,19 +1,20 @@
-#include "PlayerInfoWindow.h"
-#include "qlabel.h"
-#include "ui_PlayerInfoWindow.h"
+#include "PlayerInfoWidget.h"
+#include <QLabel>
+#include <QPlainTextEdit>
+#include "ui_PlayerInfoWidget.h"
 
-PlayerInfoWindow::PlayerInfoWindow(QWidget *parent) : QWidget(parent), ui(new Ui::PlayerInfoWindow) {
+PlayerInfoWidget::PlayerInfoWidget(QWidget *parent) : QWidget(parent), ui(new Ui::PlayerInfoWidget) {
     ui->setupUi(this);
 
 
 }
 
-PlayerInfoWindow::~PlayerInfoWindow()
+PlayerInfoWidget::~PlayerInfoWidget()
 {
     delete ui;
 }
 
-void PlayerInfoWindow::InitFieldsObjects()
+void PlayerInfoWidget::InitFieldsObjects()
 {
     const QList<QObject*> allWidgets = findChildren<QObject*>(); // Get all child widgets
     for (QObject* obj : allWidgets) {
@@ -23,26 +24,32 @@ void PlayerInfoWindow::InitFieldsObjects()
     }
 }
 
-void PlayerInfoWindow::WriteFieldsDataFromMapping(const QMap<QString, QString> &Mapping)
+void PlayerInfoWidget::WriteFieldsDataFromMapping(const QMap<QString, QString> &Mapping)
 {
-    for(auto it = Mapping.begin(); it != Mapping.end(); ++it)
+    for(auto It = Mapping.begin(); It != Mapping.end(); ++It)
     {
-        if(TagToObject.contains(it.key()))
+        if(TagToObject.contains(It.key()))
         {
             //Questionable - only works with plain text edit objects.
-            QPlainTextEdit* EditText = dynamic_cast<QPlainTextEdit*>(TagToObject[it.key()]);
+            QPlainTextEdit* EditText = dynamic_cast<QPlainTextEdit*>(TagToObject[It.key()]);
             if(EditText)
             {
-                EditText->setPlainText(it.value());
+                EditText->setPlainText(It.value());
             }
         }
     }
 }
 
-void PlayerInfoWindow::InitPlayer(const PlayerEntry &Player)
+void PlayerInfoWidget::InitPlayer(const PlayerEntry &Player)
 {
-    QMap<QString, QString> Fields = Player.GetPlayerFieldsCopy();
+    if(!TagToObject.isEmpty())
+    {
+        TagToObject.clear();
+    }
+
+    QMap<QString, QString> Fields = Player.GetPlayerFieldsCopyAsStrings();
     int i = 0;
+
     for(auto It = Fields.begin(); It != Fields.end(); ++It)
     {
         QHBoxLayout* ItemLayout = new QHBoxLayout(ui->PlayerFieldsGroupBox);
@@ -60,13 +67,15 @@ void PlayerInfoWindow::InitPlayer(const PlayerEntry &Player)
 
         ItemLayout->addWidget(ItemLabel);
         QPlainTextEdit* TextEditField = new QPlainTextEdit(ui->PlayerFieldsGroupBox);
-        TextEditField->setProperty("FieldTag", QVariant(QCoreApplication::translate("PlayerInfoWindow", It.key().toUtf8().constData(), nullptr)));
+        TextEditField->setProperty("FieldTag", QVariant(QCoreApplication::translate("PlayerInfoWidget", It.key().toUtf8().constData(), nullptr)));
         TextEditField->setPlainText(It.value());
         ItemLayout->addWidget(TextEditField);
+
+        TagToObject.insert(It.key(), TextEditField);
     }
 }
 
-QMap<QString, QString> PlayerInfoWindow::ReadDataFromFields()
+QMap<QString, QString> PlayerInfoWidget::ReadDataFromFields()
 {
     QMap<QString, QString> Result;
     for(auto it = TagToObject.begin(); it != TagToObject.end(); ++it)
@@ -80,13 +89,13 @@ QMap<QString, QString> PlayerInfoWindow::ReadDataFromFields()
     return Result;
 }
 
-void PlayerInfoWindow::on_UpdatePlayerInfoFields_clicked()
+void PlayerInfoWidget::on_UpdatePlayerInfoFields_clicked()
 {
     //Temp name. Only for test
     emit UpdateButtonClicked(ReadDataFromFields());
 }
 
-void PlayerInfoWindow::UpdatePlayerInfoFields(const QMap<QString, QString>& Mapping)
+void PlayerInfoWidget::UpdatePlayerInfoFields(const QMap<QString, QString>& Mapping)
 {
     WriteFieldsDataFromMapping(Mapping);
 }
